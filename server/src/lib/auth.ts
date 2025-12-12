@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { getPrisma } from "./db.js"; // note the .js extension for NodeNext
+import { getPrisma } from "./db.js";
+import { deviceAuthorization } from "better-auth/plugins";
 
 export const auth = betterAuth({
   database: prismaAdapter(getPrisma(), {
@@ -14,4 +15,9 @@ export const auth = betterAuth({
       clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
     },
   },
+  plugins: [
+    deviceAuthorization({
+      verificationUri: "/device",
+    }),
+  ],
 });
