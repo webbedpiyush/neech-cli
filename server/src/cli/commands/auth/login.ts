@@ -1,6 +1,6 @@
 import { cancel, confirm, intro, isCancel, outro } from "@clack/prompts";
 import { logger } from "better-auth";
-import { createAuthClient } from "better-auth/client";
+import { AuthClient, createAuthClient } from "better-auth/client";
 import { deviceAuthorizationClient } from "better-auth/client/plugins";
 
 import chalk from "chalk";
@@ -13,13 +13,18 @@ import yoctoSpinner from "yocto-spinner";
 import dotenv from "dotenv";
 import * as z from "zod/v4";
 import { prisma } from "../../../lib/db";
+import {
+  getStoredToken,
+  isTokenExpired,
+  storeToken,
+} from "../../../lib/token.js";
 
 dotenv.config();
 
 const URL = "http://localhost:3005";
 const CLIENT_ID = process.env.GITHUB_CLIENT_ID as string;
-const CONFIG_DIR = path.join(os.homedir(), "better-auth");
-const TOKEN_FILE = path.join(CONFIG_DIR, "token.json");
+export const CONFIG_DIR = path.join(os.homedir(), "better-auth");
+export const TOKEN_FILE = path.join(CONFIG_DIR, "token.json");
 
 export async function loginAction(opts: any) {
   const optionschema = z.object({
@@ -34,8 +39,8 @@ export async function loginAction(opts: any) {
   intro(chalk.bold("🔐Auth Cli Login"));
 
   // TODO: CHANGE THIS WITH TOKEN MANAGEMENT UTILS
-  const existingToken = true;
-  const expired = false;
+  const existingToken = await getStoredToken();
+  const expired = await isTokenExpired();
 
   if (existingToken && !expired) {
     const shouldReAuth = await confirm({
@@ -73,8 +78,8 @@ export async function loginAction(opts: any) {
     const {
       device_code,
       user_code,
-      verification_uri,
       verification_uri_complete,
+      verification_uri,
       interval = 5,
       expires_in,
     } = data;
@@ -82,9 +87,7 @@ export async function loginAction(opts: any) {
     console.log(chalk.cyan("Device Authorization Required"));
 
     console.log(
-      `Please visit ${chalk.cyan.underline(
-        verification_uri || verification_uri_complete
-      )}`
+      `Please visit ${chalk.cyan.underline(verification_uri_complete)}`
     );
 
     console.log(`Enter Code: ${chalk.green(user_code)}`);
@@ -95,7 +98,7 @@ export async function loginAction(opts: any) {
     });
 
     if (!isCancel(shouldOpen) && shouldOpen) {
-      const urlToOpen = verification_uri || verification_uri_complete;
+      const urlToOpen = verification_uri_complete;
       await open(urlToOpen);
     }
 
@@ -106,9 +109,109 @@ export async function loginAction(opts: any) {
         )} minutes)...`
       )
     );
-  } catch (err: any) {}
+
+    const token = await pollForToken(
+      authClient,
+      device_code,
+      clientId,
+      interval
+    );
+
+    if (token) {
+      const saved = await storeToken(token);
+
+      if (!saved) {
+        console.log(
+          chalk.yellow("\n⚠️ Warning: Could not save authentication token.")
+        );
+      }
+      console.log(chalk.yellow("You may need to login again on next use."));
+    }
+
+    // TODO : get the user data
+    outro(chalk.green("Login Successful!"));
+
+    console.log(chalk.green(`\n Token saved to : ${TOKEN_FILE}`));
+
+    console.log(
+      chalk.gray("You can now use AI commands without logging in again.\n")
+    );
+  } catch (err: any) {
+    spinner.stop();
+    console.error(chalk.red("❌ Login failed:", err.message));
+    process.exit(1);
+  }
 }
 
+async function pollForToken(
+  authClient: any,
+  deviceCode: string,
+  clientId: string,
+  initialInterval: number
+) {
+  let pollingInterval = initialInterval;
+  const spinner = yoctoSpinner({ text: "", color: "cyan" });
+  let dots = 0;
+
+  return new Promise((resolve, reject) => {
+    const poll = async () => {
+      dots = (dots + 1) % 4;
+      spinner.text = chalk.gray(
+        `Polling for authorization${" ".repeat(3 - dots)}`
+      );
+      if (!spinner.isSpinning) spinner.start();
+
+      try {
+        const { data, error } = await authClient.device.token({
+          grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+          device_code: deviceCode,
+          client_id: clientId,
+        });
+
+        if (data?.access_token) {
+          console.log(
+            chalk.bold.yellow(`Your access token : ${data.access_token}`)
+          );
+
+          spinner.stop();
+          resolve(data);
+          return;
+        } else if (error as any) {
+          switch (error.error) {
+            case "authorization_pending":
+              // Continue polling silently
+              break;
+            case "slow_down":
+              pollingInterval += 5;
+              console.log(`⚠️  Slowing down polling to ${pollingInterval}s`);
+              break;
+            case "access_denied":
+              console.error("❌ Access was denied by the user");
+              process.exit(1);
+              break;
+            case "expired_token":
+              console.error(
+                "❌ The device code has expired. Please try again."
+              );
+              process.exit(1);
+              break;
+            default:
+              spinner.stop();
+              logger.error("❌ Error:", error.error_description);
+              process.exit(1);
+          }
+        }
+      } catch (error: any) {
+        spinner.stop();
+        logger.error("Network Error:", error.message);
+        process.exit(1);
+      }
+
+      setTimeout(poll, pollingInterval * 1000);
+    };
+    setTimeout(poll, pollingInterval * 1000);
+  });
+}
 // ------------------------------------------------------------
 // COMMANDER-SETUP
 // ------------------------------------------------------------
