@@ -12,10 +12,12 @@ import path from "node:path";
 import yoctoSpinner from "yocto-spinner";
 import dotenv from "dotenv";
 import * as z from "zod/v4";
-import { prisma } from "../../../lib/db";
+import { prisma } from "../../../lib/db.js";
 import {
+  clearStoredToken,
   getStoredToken,
   isTokenExpired,
+  requireAuth,
   storeToken,
 } from "../../../lib/token.js";
 
@@ -124,8 +126,8 @@ export async function loginAction(opts: any) {
         console.log(
           chalk.yellow("\n⚠️ Warning: Could not save authentication token.")
         );
+        console.log(chalk.yellow("You may need to login again on next use."));
       }
-      console.log(chalk.yellow("You may need to login again on next use."));
     }
 
     // TODO : get the user data
@@ -212,6 +214,67 @@ async function pollForToken(
     setTimeout(poll, pollingInterval * 1000);
   });
 }
+
+async function logoutAction() {
+  intro(chalk.bold("👋 Logout"));
+
+  const token = await getStoredToken();
+
+  if (!token) {
+    console.log(chalk.yellow("You're not logged in."));
+    process.exit(0);
+  }
+
+  const shouldLogout = await confirm({
+    message: "Are you sure you want to logout?",
+    initialValue: false,
+  });
+
+  if (isCancel(shouldLogout) || !shouldLogout) {
+    cancel("Logout cancelled");
+    process.exit(0);
+  }
+
+  const cleared = await clearStoredToken();
+
+  if (cleared) {
+    outro(chalk.green("✅ Successfully logged out!"));
+  } else {
+    console.log(chalk.yellow("⚠️ Could not clear token file."));
+  }
+}
+
+async function whoamiAction() {
+  const token = await requireAuth();
+
+  if (!token?.access_token) {
+    console.log("No access token found. Please login.");
+    process.exit(1);
+  }
+
+  const user = await prisma.user.findFirst({
+    where: {
+      sessions: {
+        some: {
+          token: token.access_token,
+        },
+      },
+    },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      image: true,
+    },
+  });
+
+  console.log(
+    chalk.bold.greenBright(`\n👤 User: ${user?.name}
+📧 Email: ${user?.email}
+👤 ID: ${user?.id}`)
+  );
+}
+
 // ------------------------------------------------------------
 // COMMANDER-SETUP
 // ------------------------------------------------------------
@@ -221,3 +284,12 @@ export const login = new Command("login")
   .option("--server-url <url>", "The Neech Server URL", URL)
   .option("--client-id <id>", "The Client ID", CLIENT_ID)
   .action(loginAction);
+
+export const whoami = new Command("whoami")
+  .description("Show current authenticated user")
+  .option("--server-url <url>", "The Neech server url", URL)
+  .action(whoamiAction);
+
+export const logout = new Command("logout")
+  .description("Logout and clear stored credentials")
+  .action(logoutAction);

@@ -60,7 +60,9 @@ export default function DeviceAuthorizationPage() {
           </div>
         </div>
 
-        <form className="border-2 border-dashed border-zinc-700 rounded-xl p-8 bg-zinc-950 backdrop-blur-sm">
+        <form
+          className="border-2 border-dashed border-zinc-700 rounded-xl p-8 bg-zinc-950 backdrop-blur-sm"
+          onSubmit={handleSubmit}>
           <div className="space-y-6">
             <div>
               <label
