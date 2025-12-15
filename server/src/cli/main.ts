@@ -6,6 +6,7 @@ import figlet from "figlet";
 
 import { Command } from "commander";
 import { login, logout, whoami } from "./commands/auth/login.js";
+import { wakeUp } from "./commands/ai/wakeUp.js";
 
 dotenv.config();
 
@@ -29,7 +30,8 @@ async function main() {
     .description("Neech CLI - A Cli based Tool")
     .addCommand(login)
     .addCommand(logout)
-    .addCommand(whoami);
+    .addCommand(whoami)
+    .addCommand(wakeUp);
 
   program.action(() => program.help());
 

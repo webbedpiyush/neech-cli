@@ -1,6 +1,6 @@
 import { google } from "@ai-sdk/google";
 import { config } from "../../config/google.config.js";
-import { streamText } from "ai";
+import { convertToModelMessages, streamText } from "ai";
 import chalk from "chalk";
 
 type OnChunk = (chunk: string) => void;
