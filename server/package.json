@@ -17,6 +17,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
+    "@types/marked-terminal": "^6.1.1",
     "@types/node": "^24.10.1",
     "prisma": "^6.18.0",
     "ts-node-dev": "^2.0.0",
@@ -37,7 +38,7 @@
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "figlet": "^1.9.4",
-    "marked": "^15.0.12",
+    "marked": "^4.3.0",
     "marked-terminal": "^7.3.0",
     "open": "^11.0.0",
     "yocto-spinner": "^1.0.0",

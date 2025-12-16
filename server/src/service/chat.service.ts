@@ -78,16 +78,10 @@ export class ChatService {
    * @param {string} conversationId
    */
   async getMessages(conversationId: string) {
-    const messages = await prisma.message.findMany({
+    return await prisma.message.findMany({
       where: { conversationId },
       orderBy: { createdAt: "asc" },
     });
-
-    // Parse JSON content back to object if needed
-    return messages.map((msg) => ({
-      ...msg,
-      content: this.parseContent(msg.content),
-    }));
   }
 
   /**
@@ -157,12 +151,23 @@ export class ChatService {
    * @param {Array} messages
    */
   formatMessagesForAI(messages: Array<any>) {
-    return messages.map((msg) => ({
-      role: msg.role,
-      content:
+    return messages.map((msg) => {
+      const role = msg.role === "model" ? "assistant" : msg.role;
+
+      const contentString =
         typeof msg.content === "string"
           ? msg.content
-          : JSON.stringify(msg.content),
-    }));
+          : JSON.stringify(msg.content);
+
+      return {
+        role: role as "user" | "assistant",
+        parts: [
+          {
+            type: "text" as const  , 
+            text: contentString,
+          },
+        ],
+      };
+    });
   }
 }

@@ -4,6 +4,7 @@ import yoctoSpinner from "yocto-spinner";
 import { prisma } from "../../../lib/db.js";
 import { select } from "@clack/prompts";
 import { Command } from "commander";
+import { startChat } from "../../chat/chat-with-ai.js";
 
 const wakeUpAction = async () => {
   const token = await getStoredToken();
@@ -63,7 +64,7 @@ const wakeUpAction = async () => {
 
   switch (choice) {
     case "chat":
-      console.log(chalk.green("simple chat is initialised"));
+      await startChat();
       break;
     case "tool":
       console.log(chalk.green("tool calling is initialised"));
