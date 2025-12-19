@@ -5,6 +5,7 @@ import { prisma } from "../../../lib/db.js";
 import { select } from "@clack/prompts";
 import { Command } from "commander";
 import { startChat } from "../../chat/chat-with-ai.js";
+import { startToolChat } from "../../chat/chat-with-ai-tool.js";
 
 const wakeUpAction = async () => {
   const token = await getStoredToken();
@@ -67,7 +68,7 @@ const wakeUpAction = async () => {
       await startChat();
       break;
     case "tool":
-      console.log(chalk.green("tool calling is initialised"));
+      await startToolChat();
       break;
     case "agent":
       console.log(chalk.green("agentic chat is initialised"));
