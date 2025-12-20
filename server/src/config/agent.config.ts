@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import path from "path";
-import { success, z } from "zod";
+import z from "zod";
 import fs from "fs/promises";
 import { generateObject } from "ai";
 
